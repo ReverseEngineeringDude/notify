@@ -1,5 +1,5 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 class GlassCard extends StatelessWidget {
   final Widget child;
@@ -27,43 +27,28 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final br = borderRadius ?? BorderRadius.circular(20);
 
-    Widget cardContent = Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(opacity),
-        borderRadius: br,
-        border: Border.all(
-          color: Colors.white.withOpacity(0.5),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            spreadRadius: 0,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: padding ?? const EdgeInsets.all(24.0),
-      child: child,
-    );
-
-    if (onTap != null) {
-      cardContent = InkWell(
-        onTap: onTap,
-        borderRadius: br,
-        child: cardContent,
-      );
-    }
-
     return Padding(
       padding: margin ?? EdgeInsets.zero,
       child: ClipRRect(
         borderRadius: br,
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: cardContent,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: height,
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemBackground.resolveFrom(context).withOpacity(opacity),
+                borderRadius: br,
+                border: Border.all(
+                  color: CupertinoColors.systemGrey4.resolveFrom(context).withOpacity(0.5),
+                  width: 0.5,
+                ),
+              ),
+              padding: padding ?? const EdgeInsets.all(24.0),
+              child: child,
+            ),
+          ),
         ),
       ),
     );

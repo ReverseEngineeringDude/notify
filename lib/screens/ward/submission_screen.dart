@@ -1,9 +1,10 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
+import 'package:flutter/material.dart' show Colors, Icons, Theme; // Minimal material for compatibility
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
+
 import 'package:uuid/uuid.dart';
-import 'package:intl/intl.dart';
 import '../../models/program_model.dart';
 import '../../models/submission_model.dart';
 import '../../services/firestore_service.dart';
@@ -19,34 +20,70 @@ class SubmissionScreen extends StatefulWidget {
 }
 
 class _SubmissionScreenState extends State<SubmissionScreen> {
-  final _formKey = GlobalKey<FormState>();
   final Map<String, dynamic> _formData = {};
-  File? _imageFile;
+
   bool _isSubmitting = false;
+
+  // Controllers for text fields to manage state
+  final Map<String, TextEditingController> _controllers = {};
 
   @override
   void initState() {
     super.initState();
-  }
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 50);
-    if (pickedFile != null) {
-      setState(() => _imageFile = File(pickedFile.path));
+    // Initialize controllers
+    for (var field in widget.program.fields) {
+      if (field.type == FieldType.text || field.type == FieldType.number) {
+        _controllers[field.key] = TextEditingController();
+      }
     }
   }
 
+  @override
+  void dispose() {
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+
+
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) return;
+    // Validate
+    for (var field in widget.program.fields) {
+      if (field.required) {
+        bool isEmpty = false;
+        if (field.type == FieldType.text || field.type == FieldType.number) {
+          if (_controllers[field.key]!.text.isEmpty) isEmpty = true;
+        } else {
+          if (_formData[field.key] == null || _formData[field.key].toString().isEmpty) isEmpty = true;
+        }
+
+        if (isEmpty) {
+          showCupertinoDialog(
+            context: context,
+            builder: (ctx) => CupertinoAlertDialog(
+              title: const Text("Missing Input"),
+              content: Text("${field.label} is required."),
+              actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: () => Navigator.pop(ctx))],
+            ),
+          );
+          return;
+        }
+      }
+      
+      // Save text values to formData
+      if (field.type == FieldType.text) {
+        _formData[field.key] = _controllers[field.key]!.text;
+      } else if (field.type == FieldType.number) {
+        _formData[field.key] = num.tryParse(_controllers[field.key]!.text);
+      }
+    }
     
-    _formKey.currentState!.save();
     setState(() => _isSubmitting = true);
 
     try {
-      // Mock Image Upload (We would upload to Firebase Storage here and get URL)
-      // String? imageUrl = await StorageService.upload(_imageFile); 
-      String? imageUrl = _imageFile?.path; // Storing local path for mock
+      String? imageUrl = null; // Proof submission removed as per request
 
       final user = Provider.of<AuthService>(context, listen: false).currentUser;
 
@@ -65,22 +102,34 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
       await Provider.of<FirestoreService>(context, listen: false).submitEntry(submission);
 
       if (mounted) {
-        showDialog(
+        await showCupertinoDialog(
           context: context,
-          builder: (ctx) => AlertDialog(
+          builder: (ctx) => CupertinoAlertDialog(
             title: const Text("Success"),
             content: const Text("Data submitted successfully!"),
             actions: [
-              TextButton(onPressed: () {
-                Navigator.pop(ctx); // Close dialog
-                Navigator.pop(context); // Go back
-              }, child: const Text("OK"))
+              CupertinoDialogAction(
+                child: const Text("OK"),
+                onPressed: () {
+                  Navigator.pop(ctx); 
+                  Navigator.pop(context); 
+                },
+              )
             ],
           ),
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+         showCupertinoDialog(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text("Error"),
+            content: Text(e.toString()),
+            actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(ctx))],
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -88,44 +137,37 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.program.name)),
-      body: _isSubmitting 
-          ? const Center(child: CircularProgressIndicator()) 
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                   // Dynamic Fields Loop
-                   ...widget.program.fields.map((field) {
-                     return Padding(
-                       padding: const EdgeInsets.only(bottom: 16),
-                       child: _buildFieldWidget(field),
-                     );
-                   }),
-                   
-                   const Divider(height: 32),
-                   
-                   // Image Proof
-                   ListTile(
-                     leading: const Icon(Icons.camera_alt),
-                     title: const Text("Upload Proof"),
-                     subtitle: _imageFile != null ? Text("Image Selected") : const Text("No image selected"),
-                     trailing: _imageFile != null 
-                         ? Image.file(_imageFile!, width: 40, height: 40, fit: BoxFit.cover)
-                         : ConstrainedBox(constraints: const BoxConstraints(), child: const Icon(Icons.add_a_photo)), // Fix for potentially unbound Icon
-                     onTap: _pickImage,
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(widget.program.name),
+      ),
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      child: SafeArea(
+        child: _isSubmitting 
+          ? const Center(child: CupertinoActivityIndicator()) 
+          : ListView(
+              children: [
+                 if (widget.program.fields.isNotEmpty)
+                   CupertinoFormSection.insetGrouped(
+                     header: const Text("ENTRY DETAILS"),
+                     children: widget.program.fields.map((field) {
+                       return _buildFieldWidget(field);
+                     }).toList(),
                    ),
-                   
-                   const SizedBox(height: 24),
-                   ElevatedButton(
+                 
+
+                 
+                 Padding(
+                   padding: const EdgeInsets.all(16.0),
+                   child: CupertinoButton.filled(
                      onPressed: _submitForm, 
-                     child: const Text("SUBMIT DATA"),
+                     child: const Text("Submit Data"),
                    ),
-                ],
-              ),
+                 ),
+                 const SizedBox(height: 40),
+              ],
             ),
+      ),
     );
   }
 
@@ -133,68 +175,125 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
     switch (field.type) {
       case FieldType.text:
       case FieldType.number:
-        return TextFormField(
-          decoration: InputDecoration(
-            labelText: field.label + (field.required ? ' *' : ''),
-          ),
+        return CupertinoTextFormFieldRow(
+          controller: _controllers[field.key],
+          placeholder: field.label,
           keyboardType: field.type == FieldType.number ? TextInputType.number : TextInputType.text,
-          validator: (value) {
-            if (field.required && (value == null || value.isEmpty)) {
-              return '${field.label} is required';
-            }
-            return null;
-          },
-          onSaved: (val) => _formData[field.key] = field.type == FieldType.number ? num.tryParse(val ?? '') : val,
+          prefix: field.required 
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   const Text("*", style: TextStyle(color: CupertinoColors.destructiveRed)),
+                   const SizedBox(width: 4),
+                   Text(field.label),
+                ],
+              ) 
+            : Text(field.label),
         );
       
       case FieldType.dropdown:
-        return DropdownButtonFormField<String>(
-          decoration: InputDecoration(
-            labelText: field.label + (field.required ? ' *' : ''),
-          ),
-          items: field.options?.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList() ?? [],
-          onChanged: (val) {}, // State update handled by onSaved
-          validator: (value) {
-            if (field.required && value == null) return 'Required';
-            return null;
-          },
-          onSaved: (val) => _formData[field.key] = val,
-        );
-
-      case FieldType.date:
-        return FormField<DateTime>(
-          validator: (val) {
-             if (field.required && _formData[field.key] == null) return 'Required';
-             return null;
-          },
-          builder: (state) {
-            return InkWell(
-              onTap: () async {
-                final date = await showDatePicker(
-                  context: context, 
-                  initialDate: DateTime.now(), 
-                  firstDate: DateTime(2000), 
-                  lastDate: DateTime(2100)
-                );
-                if (date != null) {
-                  setState(() => _formData[field.key] = date.toIso8601String());
-                  state.didChange(date);
-                }
-              },
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: field.label + (field.required ? ' *' : ''),
-                  errorText: state.errorText,
-                  suffixIcon: const Icon(Icons.calendar_today),
-                ),
-                child: Text(
-                  _formData[field.key] != null 
-                    ? _formData[field.key].toString().split('T')[0] 
-                    : 'Select Date'
+        return GestureDetector(
+          onTap: () {
+            showCupertinoModalPopup(
+              context: context,
+              builder: (ctx) => CupertinoActionSheet(
+                title: Text("Select ${field.label}"),
+                actions: field.options?.map((opt) => CupertinoActionSheetAction(
+                  child: Text(opt),
+                  onPressed: () {
+                    setState(() => _formData[field.key] = opt);
+                    Navigator.pop(ctx);
+                  },
+                )).toList() ?? [],
+                cancelButton: CupertinoActionSheetAction(
+                  child: const Text("Cancel"),
+                  onPressed: () => Navigator.pop(ctx),
                 ),
               ),
             );
           },
+          child: CupertinoFormRow(
+            prefix: field.required 
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   const Text("*", style: TextStyle(color: CupertinoColors.destructiveRed)),
+                   const SizedBox(width: 4),
+                   Text(field.label),
+                ],
+              ) 
+            : Text(field.label),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  _formData[field.key]?.toString() ?? "Select",
+                  style: TextStyle(
+                    color: _formData[field.key] != null 
+                    ? CupertinoColors.label.resolveFrom(context) 
+                    : CupertinoColors.placeholderText.resolveFrom(context)
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(CupertinoIcons.chevron_up_chevron_down, size: 14, color: CupertinoColors.systemGrey),
+              ],
+            ),
+          ),
+        );
+
+      case FieldType.date:
+        return GestureDetector(
+          onTap: () {
+            showCupertinoModalPopup(
+              context: context,
+              builder: (c) => Container(
+                height: 216,
+                padding: const EdgeInsets.only(top: 6.0),
+                margin: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                color: CupertinoColors.systemBackground.resolveFrom(context),
+                child: SafeArea(
+                  top: false,
+                  child: CupertinoDatePicker(
+                    initialDateTime: DateTime.tryParse(_formData[field.key] ?? '') ?? DateTime.now(),
+                    mode: CupertinoDatePickerMode.date,
+                    use24hFormat: true,
+                    onDateTimeChanged: (date) {
+                      setState(() => _formData[field.key] = date.toIso8601String());
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+          child: CupertinoFormRow(
+            prefix: field.required 
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   const Text("*", style: TextStyle(color: CupertinoColors.destructiveRed)),
+                   const SizedBox(width: 4),
+                   Text(field.label),
+                ],
+              ) 
+            : Text(field.label),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  _formData[field.key] != null 
+                    ? DateTime.parse(_formData[field.key]).toIso8601String().split('T')[0]
+                    : "Select Date",
+                  style: TextStyle(
+                    color: _formData[field.key] != null 
+                    ? CupertinoColors.label.resolveFrom(context) 
+                    : CupertinoColors.placeholderText.resolveFrom(context)
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(CupertinoIcons.calendar, size: 16, color: CupertinoColors.systemGrey),
+              ],
+            ),
+          ),
         );
         
       default:

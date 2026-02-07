@@ -1,11 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart'; // Haptics
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/program_model.dart';
 import '../../services/firestore_service.dart';
-import '../../widgets/common/modern_scaffold.dart';
-import '../../widgets/common/glass_card.dart';
-import '../../widgets/common/animated_entry.dart';
 
 class CreateProgramScreen extends StatefulWidget {
   final ProgramModel? programToEdit;
@@ -17,7 +15,6 @@ class CreateProgramScreen extends StatefulWidget {
 }
 
 class _CreateProgramScreenState extends State<CreateProgramScreen> {
-  final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late DateTime _startDate;
   late DateTime _endDate;
@@ -52,16 +49,12 @@ class _CreateProgramScreenState extends State<CreateProgramScreen> {
   void _addField() {
     setState(() {
       _fields.add(FieldDefinition(
-        key: const Uuid().v4(), // Temporary key
+        key: const Uuid().v4(),
         label: 'New Field',
         type: FieldType.text,
       ));
     });
     _showEditFieldDialog(_fields.length - 1);
-  }
-
-  void _editField(int index) {
-    _showEditFieldDialog(index);
   }
 
   void _removeField(int index) {
@@ -76,53 +69,92 @@ class _CreateProgramScreenState extends State<CreateProgramScreen> {
     FieldType selectedType = field.type;
     bool isRequired = field.required;
     
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => CupertinoAlertDialog(
         title: const Text("Edit Field"),
         content: StatefulBuilder(
           builder: (context, setState) {
             return Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                const SizedBox(height: 16),
+                CupertinoTextField(
                   controller: labelController,
-                  decoration: const InputDecoration(labelText: "Field Label"),
+                  placeholder: "Field Label",
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<FieldType>(
-                  value: selectedType,
-                  items: FieldType.values.map((t) => DropdownMenuItem(
-                    value: t,
-                    child: Text(t.name.toUpperCase()),
-                  )).toList(),
-                  onChanged: (val) => setState(() => selectedType = val!),
-                  decoration: const InputDecoration(labelText: "Field Type"),
+                GestureDetector(
+                  onTap: () {
+                    showCupertinoModalPopup(
+                      context: context,
+                      builder: (c) => Container(
+                        height: 200,
+                        color: CupertinoColors.systemBackground.resolveFrom(context),
+                        child: CupertinoPicker(
+                          itemExtent: 32,
+                          onSelectedItemChanged: (i) {
+                            setState(() => selectedType = FieldType.values[i]);
+                          },
+                          children: FieldType.values.map((t) => Center(child: Text(t.name.toUpperCase()))).toList(),
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: CupertinoColors.systemGrey4),
+                      borderRadius: BorderRadius.circular(8),
+                      color: CupertinoColors.systemBackground.resolveFrom(context),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "Type: ${selectedType.name.toUpperCase()}",
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ),
+                        const Icon(CupertinoIcons.chevron_down, size: 16),
+                      ],
+                    ),
+                  ),
                 ),
-                CheckboxListTile(
-                  title: const Text("Required"),
-                  value: isRequired,
-                  onChanged: (val) => setState(() => isRequired = val!),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Required"),
+                    CupertinoSwitch(
+                      value: isRequired,
+                      onChanged: (val) => setState(() => isRequired = val),
+                    ),
+                  ],
                 ),
               ],
             );
           },
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
+          CupertinoDialogAction(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () {
-              setState(() {
+              // Update parent state
+              this.setState(() {
                 _fields[index] = FieldDefinition(
-                  key: labelController.text.toLowerCase().replaceAll(' ', '_'), // Generate key from label
+                  key: labelController.text.toLowerCase().replaceAll(' ', '_'),
                   label: labelController.text,
                   type: selectedType,
                   required: isRequired,
                 );
               });
               Navigator.pop(context);
-              // Trigger parent rebuild to update list
-              this.setState(() {}); 
             },
             child: const Text("Save"),
           ),
@@ -132,11 +164,17 @@ class _CreateProgramScreenState extends State<CreateProgramScreen> {
   }
 
   void _saveProgram() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_fields.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Add at least one field")));
-      return;
-    }
+    if (_nameController.text.isEmpty) {
+       showCupertinoDialog(
+         context: context, 
+         builder: (c) => CupertinoAlertDialog(
+           title: const Text("Missing Info"),
+           content: const Text("Program name is required"),
+           actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: () => Navigator.pop(c))],
+         )
+       );
+       return;
+     }
 
     final program = ProgramModel(
       id: widget.programToEdit?.id ?? const Uuid().v4(),
@@ -151,112 +189,185 @@ class _CreateProgramScreenState extends State<CreateProgramScreen> {
       await Provider.of<FirestoreService>(context, listen: false).createProgram(program);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+         showCupertinoDialog(
+         context: context, 
+         builder: (c) => CupertinoAlertDialog(
+           title: const Text("Error"),
+           content: Text(e.toString()),
+           actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: () => Navigator.pop(c))],
+         )
+       );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ModernScaffold(
-      appBar: AppBar(
-        title: Text(widget.programToEdit != null ? "Edit Program" : "Create Program"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+    return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(widget.programToEdit != null ? "Edit Program" : "Create Program"),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            HapticFeedback.mediumImpact();
+            _saveProgram();
+          },
+          child: const Text("Save"),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AnimatedEntry(
-                child: GlassCard(
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(labelText: "Program Name"),
-                        validator: (v) => v!.isEmpty ? "Required" : null,
-                      ),
-                      const SizedBox(height: 16),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text("Start Date"),
-                        subtitle: Text(_startDate.toString().split(' ')[0]),
-                        trailing: const Icon(Icons.calendar_today),
-                        onTap: () async {
-                          final d = await showDatePicker(context: context, initialDate: _startDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
-                          if (d != null) setState(() => _startDate = d);
-                        },
-                      ),
-                      const Divider(),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text("End Date"),
-                        subtitle: Text(_endDate.toString().split(' ')[0]),
-                        trailing: const Icon(Icons.class_outlined), // Changed icon to avoid duplicate calendar look, or keep calendar
-                        onTap: () async {
-                          final d = await showDatePicker(context: context, initialDate: _endDate, firstDate: DateTime(2020), lastDate: DateTime(2030));
-                          if (d != null) setState(() => _endDate = d);
-                        },
-                      ),
-                    ],
-                  ),
+      child: SafeArea(
+        child: ListView(
+          children: [
+            CupertinoFormSection.insetGrouped(
+              header: const Text("PROGRAM DETAILS"),
+              children: [
+                CupertinoTextFormFieldRow(
+                  controller: _nameController,
+                  placeholder: "Program Name",
+                  prefix: const Icon(CupertinoIcons.doc_text, color: CupertinoColors.systemGrey),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Row(
+                _buildDatePickerRow("Start Date", _startDate, (d) => setState(() => _startDate = d)),
+                _buildDatePickerRow("End Date", _endDate, (d) => setState(() => _endDate = d)),
+              ],
+            ),
+            
+            if (_fields.isNotEmpty)
+              CupertinoFormSection.insetGrouped(
+                header: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Form Fields", style: Theme.of(context).textTheme.titleLarge),
-                    IconButton(
-                      onPressed: _addField,
-                      icon: const Icon(Icons.add_circle, color: Colors.indigo, size: 30),
-                      tooltip: "Add Field",
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-               if (_fields.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text("No fields added yet. Add fields to build your form.", style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
-                ),
-              ..._fields.asMap().entries.map((entry) {
-                int idx = entry.key;
-                FieldDefinition f = entry.value;
-                return AnimatedEntry(
-                  delay: Duration(milliseconds: idx * 100),
-                  child: GlassCard(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(f.label, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("${f.type.name.toUpperCase()} ${f.required ? '• Required' : ''}"),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    const Text("FORM FIELDS"),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minSize: 0,
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        _addField();
+                      },
+                      child: const Row(
                         children: [
-                          IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: () => _editField(idx)),
-                          IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () => _removeField(idx)),
+                          Icon(CupertinoIcons.add_circled, size: 20),
+                          SizedBox(width: 4),
+                          Text("Add Field"),
                         ],
                       ),
                     ),
+                  ],
+                ),
+                children: _fields.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  FieldDefinition f = entry.value;
+                  return CupertinoFormRow(
+                    prefix: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                         const Icon(CupertinoIcons.square_list, color: CupertinoColors.systemGrey),
+                         const SizedBox(width: 12),
+                         Text(f.label),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(f.type.name.toUpperCase(), style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+                        if (f.required) 
+                          const Text(" • Req", style: TextStyle(fontSize: 12, color: CupertinoColors.destructiveRed)),
+                        const SizedBox(width: 8),
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minSize: 0,
+                          onPressed: () => _showEditFieldDialog(idx),
+                          child: const Icon(CupertinoIcons.pencil, size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minSize: 0,
+                          onPressed: () => _removeField(idx),
+                          child: const Icon(CupertinoIcons.trash, color: CupertinoColors.destructiveRed, size: 20),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              )
+            else
+               Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("FORM FIELDS", style: TextStyle(color: CupertinoColors.systemGrey, fontSize: 13)),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minSize: 0,
+                        onPressed: _addField,
+                        child: const Row(
+                          children: [
+                            Icon(CupertinoIcons.add_circled, size: 20),
+                            SizedBox(width: 4),
+                            Text("Add Field"),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              }),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _saveProgram,
-                child: Text(widget.programToEdit != null ? "Update Program" : "Publish Program"),
+               ),
+            
+             if (_fields.isEmpty) 
+               const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Text("No fields added yet.", style: TextStyle(color: CupertinoColors.systemGrey)),
+                  ),
+                ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePickerRow(String label, DateTime date, Function(DateTime) onDateChanged) {
+    return GestureDetector(
+      onTap: () {
+        showCupertinoModalPopup<void>(
+          context: context,
+          builder: (BuildContext context) => Container(
+            height: 216,
+            padding: const EdgeInsets.only(top: 6.0),
+            margin: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            color: CupertinoColors.systemBackground.resolveFrom(context),
+            child: SafeArea(
+              top: false,
+              child: CupertinoDatePicker(
+                initialDateTime: date,
+                mode: CupertinoDatePickerMode.date,
+                use24hFormat: true,
+                onDateTimeChanged: (DateTime newDate) {
+                  onDateChanged(newDate);
+                },
               ),
-              const SizedBox(height: 40), // Bottom padding
-            ],
+            ),
           ),
+        );
+      },
+      child: CupertinoFormRow(
+        prefix: Row(
+          children: [
+            const Icon(CupertinoIcons.calendar, color: CupertinoColors.systemGrey),
+            const SizedBox(width: 12),
+            Text(label),
+          ],
+        ),
+        child: Text(
+          "${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}",
+          style: const TextStyle(color: CupertinoColors.systemGrey),
         ),
       ),
     );

@@ -49,30 +49,17 @@ class AuthService extends ChangeNotifier {
         _currentUser = UserModel.fromMap(doc.data() as Map<String, dynamic>);
       } else {
           debugPrint("Firestore Profile NOT FOUND for ${firebaseUser.uid}");
-         // IMPLICIT ADMIN ACCESS: If profile is missing, grant Super Admin access automatically.
-         debugPrint("Granting Implicit Super Admin Access...");
-         _currentUser = UserModel(
-            uid: firebaseUser.uid,
-            email: firebaseUser.email ?? "unknown@admin.com",
-            role: UserRole.superAdmin,
-            name: "Admin (Implicit)",
-         );
-         // Optional: Auto-create this profile to persist it? 
-         // For now, in-memory is enough to pass the AuthWrapper check.
+          _currentUser = null; 
+          // Access denied or wait for registration
       }
     } catch (e) {
       debugPrint("Error fetching user data: $e");
-      // Fallback: If error occurs, also grant access (fail open for authorized users per request)
-      _currentUser = UserModel(
-          uid: firebaseUser.uid,
-          email: firebaseUser.email ?? "error@admin.com",
-          role: UserRole.superAdmin,
-          name: "Admin (Fallback)",
-       );
+      _currentUser = null;
     } finally {
       _isLoadingProfile = false;
       notifyListeners();
     }
+
   }
 
   // Login

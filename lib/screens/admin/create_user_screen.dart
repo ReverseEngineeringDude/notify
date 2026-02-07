@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart'; // Haptics
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
@@ -11,7 +12,6 @@ class CreateUserScreen extends StatefulWidget {
 }
 
 class _CreateUserScreenState extends State<CreateUserScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _wardIdController = TextEditingController();
@@ -20,75 +20,154 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Create New User")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              const Text(
-                "Create a new administrator account. \nNOTE: You will be signed out to create this account.",
-                style: TextStyle(color: Colors.grey),
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text("Create New User"),
+      ),
+      backgroundColor: CupertinoColors.systemGroupedBackground,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      "Create a new administrator account.\nNOTE: You will be signed out to create this account.",
+                      style: CupertinoTheme.of(context).textTheme.textStyle.copyWith(
+                        color: CupertinoColors.systemGrey,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  CupertinoFormSection.insetGrouped(
+                    header: const Text("ACCOUNT DETAILS"),
+                    children: [
+                      CupertinoTextFormFieldRow(
+                        controller: _emailController,
+                        placeholder: "Email Address",
+                        keyboardType: TextInputType.emailAddress,
+                        prefix: const Icon(CupertinoIcons.mail, color: CupertinoColors.systemGrey),
+                      ),
+                      CupertinoTextFormFieldRow(
+                        controller: _passwordController,
+                        placeholder: "Password",
+                        obscureText: true,
+                         prefix: const Icon(CupertinoIcons.lock, color: CupertinoColors.systemGrey),
+                      ),
+                    ],
+                  ),
+                  CupertinoFormSection.insetGrouped(
+                    header: const Text("ROLE & PERMISSIONS"),
+                    children: [
+                      GestureDetector(
+                        onTap: () => _showRolePicker(context),
+                        child: CupertinoFormRow(
+                          prefix: const Text("Role"),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                _selectedRole.name.toUpperCase(),
+                                style: const TextStyle(color: CupertinoColors.activeBlue),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(CupertinoIcons.chevron_up_chevron_down, size: 16, color: CupertinoColors.systemGrey),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_selectedRole == UserRole.wardAdmin)
+                        CupertinoTextFormFieldRow(
+                          controller: _wardIdController,
+                          placeholder: "Ward ID (e.g. Ward-01)",
+                           prefix: const Icon(CupertinoIcons.map_pin, color: CupertinoColors.systemGrey),
+                        ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: CupertinoButton.filled(
+                      onPressed: _isLoading ? null : () {
+                        HapticFeedback.mediumImpact();
+                        _submit();
+                      },
+                      child: _isLoading
+                          ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                          : const Text("Create User"),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email Address'),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                validator: (value) =>
-                    value == null || value.length < 6 ? 'Min 6 chars' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<UserRole>(
-                value: _selectedRole,
-                decoration: const InputDecoration(labelText: 'Role'),
-                items: UserRole.values.map((role) {
-                  return DropdownMenuItem(
-                    value: role,
-                    child: Text(role.name.toUpperCase()),
-                  );
-                }).toList(),
-                onChanged: (val) {
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRolePicker(BuildContext context) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => Container(
+        height: 250,
+        color: CupertinoColors.systemBackground.resolveFrom(context),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                CupertinoButton(
+                  child: const Text("Done"),
+                  onPressed: () => Navigator.pop(ctx),
+                )
+              ],
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                itemExtent: 32,
+                onSelectedItemChanged: (index) {
                   setState(() {
-                    _selectedRole = val!;
+                    _selectedRole = UserRole.values[index];
                   });
                 },
+                children: UserRole.values.map((role) {
+                  return Center(child: Text(role.name.toUpperCase()));
+                }).toList(),
               ),
-              if (_selectedRole == UserRole.wardAdmin) ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _wardIdController,
-                  decoration: const InputDecoration(labelText: 'Ward ID (e.g. Ward-01)'),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Required for Ward Admins' : null,
-                ),
-              ],
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text("Create User"),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_emailController.text.isEmpty || _passwordController.text.length < 6) {
+       showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text("Invalid Input"),
+          content: const Text("Please check email and password (min 6 chars)."),
+          actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(ctx))],
+        ),
+      );
+      return;
+    }
+    
+    if (_selectedRole == UserRole.wardAdmin && _wardIdController.text.isEmpty) {
+       showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text("Missing Ward ID"),
+          content: const Text("Ward ID is required for Ward Admins."),
+          actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(ctx))],
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -102,15 +181,32 @@ class _CreateUserScreenState extends State<CreateUserScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("User created! You have been logged out.")),
+         await showCupertinoDialog(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text("User Created"),
+            content: const Text("User created successfully. You have been logged out."),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text("OK"), 
+                onPressed: () {
+                   Navigator.pop(ctx);
+                   Navigator.popUntil(context, (route) => route.isFirst); // Go back to login
+                }
+              )
+            ],
+          ),
         );
-        Navigator.popUntil(context, (route) => route.isFirst); // Go back to login
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
+         showCupertinoDialog(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text("Error"),
+            content: Text(e.toString()),
+            actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(ctx))],
+          ),
         );
       }
     } finally {

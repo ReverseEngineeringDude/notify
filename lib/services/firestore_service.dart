@@ -42,12 +42,40 @@ class FirestoreService extends ChangeNotifier {
     await _db.collection('programs').doc(programId).update({'isActive': isActive});
   }
 
-  // Delete program
+  // Delete program and associated submissions
   Future<void> deleteProgram(String programId) async {
     try {
-      await _db.collection('programs').doc(programId).delete();
+      // 1. Get all submissions for this program
+      final submissionsSnapshot = await _db.collection('submissions')
+          .where('programId', isEqualTo: programId)
+          .get();
+
+      // 2. Batch delete submissions
+      WriteBatch batch = _db.batch();
+      int operationCount = 0;
+
+      for (var doc in submissionsSnapshot.docs) {
+        batch.delete(doc.reference);
+        operationCount++;
+
+        // Commit batch if it reaches the limit (Firestores limit is 500)
+        if (operationCount >= 450) {
+          await batch.commit();
+          batch = _db.batch();
+          operationCount = 0;
+        }
+      }
+
+      // 3. Delete the program document
+      // We include it in the final batch for efficiency/atomicity
+      DocumentReference programRef = _db.collection('programs').doc(programId);
+      batch.delete(programRef);
+
+      // Commit the final batch
+      await batch.commit();
+      
     } catch (e) {
-      debugPrint("Error deleting program: $e");
+      debugPrint("Error deleting program and submissions: $e");
       rethrow;
     }
   }
@@ -65,14 +93,40 @@ class FirestoreService extends ChangeNotifier {
   }
 
   // Stream of submissions for a program
-  Stream<List<SubmissionModel>> getSubmissionsForProgram(String programId) {
+  Stream<List<SubmissionModel>> getSubmissionsForProgram(String programId, {int limit = 50}) {
     return _db.collection('submissions')
         .where('programId', isEqualTo: programId)
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => SubmissionModel.fromMap(doc.data(), doc.id))
             .toList());
+  }
+
+  Future<List<SubmissionModel>> getSubmissionsForProgramFuture(String programId) async {
+    final snapshot = await _db.collection('submissions')
+        .where('programId', isEqualTo: programId)
+        .orderBy('timestamp', descending: true)
+        .get();
+    return snapshot.docs
+        .map((doc) => SubmissionModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  // Delete submission
+  Future<void> deleteSubmission(String submissionId) async {
+    try {
+      await _db.collection('submissions').doc(submissionId).delete();
+    } catch (e) {
+      debugPrint("Error deleting submission: $e");
+      rethrow;
+    }
+  }
+
+  Future<List<UserModel>> getUsersFuture() async {
+    final snapshot = await _db.collection('users').get();
+    return snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList();
   }
   
   // Get total stats (Example: Sum of "amount" fields)

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors, Icons; // Minimal material for specific colors/icons if needed, but aiming for Cupertino
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
@@ -24,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
 
+    // Using ModernScaffold which now wraps CupertinoPageScaffold
     return ModernScaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -34,11 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Logo or Icon could go here
-                  Icon(
-                    Icons.admin_panel_settings,
-                    size: 80,
-                    color: Theme.of(context).colorScheme.primary,
+                   Image.asset(
+                    'assets/images/logo.png',
+                    width: 100,
+                    height: 100,
                   ),
                   const SizedBox(height: 32),
                   GlassCard(
@@ -49,8 +50,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Text(
                           "Welcome Back",
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
+                          style: CupertinoTheme.of(context).textTheme.navTitleTextStyle.copyWith(
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                               ),
                           textAlign: TextAlign.center,
@@ -58,52 +59,72 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 8),
                          Text(
                           "Sign in to continue managing your ward.",
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: CupertinoTheme.of(context).textTheme.textStyle.copyWith(
+                            color: CupertinoColors.systemGrey,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 32),
-                        TextField(
+                        CupertinoTextField(
                           controller: _emailController,
-                          decoration: const InputDecoration(
-                            labelText: 'Email Address',
-                            prefixIcon: Icon(Icons.email_outlined),
+                          placeholder: 'Email Address',
+                          prefix: const Padding(
+                            padding: EdgeInsets.only(left: 12),
+                            child: Icon(CupertinoIcons.mail, color: CupertinoColors.systemGrey),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.systemBackground.resolveFrom(context).withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: CupertinoColors.systemGrey4),
                           ),
                           keyboardType: TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 20),
-                        TextField(
+                        CupertinoTextField(
                           controller: _passwordController,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
-                            ),
+                          placeholder: 'Password',
+                          prefix: const Padding(
+                            padding: EdgeInsets.only(left: 12),
+                            child: Icon(CupertinoIcons.lock, color: CupertinoColors.systemGrey),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.systemBackground.resolveFrom(context).withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: CupertinoColors.systemGrey4),
                           ),
                           obscureText: _obscurePassword,
+                          suffix: CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            child: Icon(
+                              _obscurePassword ? CupertinoIcons.eye : CupertinoIcons.eye_slash, 
+                              color: CupertinoColors.systemGrey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                         ),
                         if (_errorMessage != null) ...[
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
+                              color: CupertinoColors.destructiveRed.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.red.withOpacity(0.3)),
+                              border: Border.all(color: CupertinoColors.destructiveRed.withOpacity(0.3)),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                                const Icon(CupertinoIcons.exclamationmark_circle, color: CupertinoColors.destructiveRed, size: 20),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _errorMessage!,
-                                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                                    style: const TextStyle(color: CupertinoColors.destructiveRed),
                                   ),
                                 ),
                               ],
@@ -111,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                         const SizedBox(height: 32),
-                        ElevatedButton(
+                        CupertinoButton.filled(
                           onPressed: authService.isLoading
                               ? null
                               : () async {
@@ -126,12 +147,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   }
                                 },
                           child: authService.isLoading
-                              ? const SizedBox(
-                                  height: 24, 
-                                  width: 24, 
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Text("LOGIN TO DASHBOARD"),
+                              ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                              : const Text("Login to Dashboard"),
                         ),
                       ],
                     ),
@@ -145,39 +162,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                       child: Column(
                         children: [
-                          TextButton.icon(
-                            icon: const Icon(Icons.bar_chart_rounded),
-                            label: const Text("View Public Statistics"),
+                          CupertinoButton(
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(CupertinoIcons.chart_bar_alt_fill),
+                                SizedBox(width: 8),
+                                Text("View Public Statistics"),
+                              ],
+                            ),
                             onPressed: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const PublicStatsScreen()),
+                                CupertinoPageRoute(builder: (_) => const PublicStatsScreen()),
                               );
                             },
                           ),
-                          const Divider(height: 24),
-                          TextButton(
-                            onPressed: () async {
-                              // Create Test Users
-                              await authService.createMockUser(
-                                email: "admin@test.com",
-                                password: "password123",
-                                role: UserRole.superAdmin,
-                              );
-                              await authService.createMockUser(
-                                email: "ward1@test.com",
-                                password: "password123",
-                                role: UserRole.wardAdmin,
-                                wardId: "Ward-01",
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Test users created! Try admin@test.com / ward1@test.com")),
-                                );
-                              }
-                            },
-                            child: const Text("Seed Test Database (Dev Only)", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                          ),
+
                         ],
                       ),
                     ),

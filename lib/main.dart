@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,9 @@ import 'services/auth_service.dart';
 import 'services/firestore_service.dart';
 import 'screens/auth_wrapper.dart';
 import 'firebase_options.dart';
+import 'providers/theme_provider.dart';
+import 'services/connectivity_service.dart';
+import 'widgets/common/offline_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,16 +57,33 @@ class MyApp extends StatelessWidget {
       );
     }
     
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthService()),
         ChangeNotifierProvider(create: (_) => FirestoreService()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectivityService()),
       ],
-      child: MaterialApp(
-        title: 'Dynamic Panchayath',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: const AuthWrapper(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return CupertinoApp(
+            title: 'Dynamic Panchayath',
+            debugShowCheckedModeBanner: false,
+            // Use builder to wrap the entire app with the OfflineBanner
+            builder: (context, child) {
+              return Stack(
+                textDirection: TextDirection.ltr,
+                children: [
+                  if (child != null) child,
+                  const OfflineBanner(),
+                ],
+              );
+            },
+            theme: themeProvider.isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
+            home: const AuthWrapper(),
+          );
+        },
       ),
     );
   }

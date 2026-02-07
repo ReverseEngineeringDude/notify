@@ -1,122 +1,216 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors, Icons, CircleAvatar; // Minimal material
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/auth_service.dart';
-import '../../widgets/common/modern_scaffold.dart';
 import '../../widgets/common/glass_card.dart';
 import '../../widgets/common/animated_entry.dart';
 import 'create_user_screen.dart';
 
-class UserManagementScreen extends StatelessWidget {
+import '../../services/export_service.dart';
+
+class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
+
+  @override
+  State<UserManagementScreen> createState() => _UserManagementScreenState();
+}
+
+class _UserManagementScreenState extends State<UserManagementScreen> {
+  String _searchQuery = "";
+  final ExportService _exportService = ExportService();
+  bool _isExporting = false;
 
   @override
   Widget build(BuildContext context) {
     final firestoreService = Provider.of<FirestoreService>(context);
 
-    return ModernScaffold(
-      appBar: AppBar(
-        title: const Text("User Management"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text("User Management"),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+             if (_isExporting)
+              const CupertinoActivityIndicator()
+            else
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                child: const Icon(CupertinoIcons.share),
+                onPressed: () async {
+                  setState(() => _isExporting = true);
+                  try {
+                    final users = await firestoreService.getUsersFuture();
+                    await _exportService.exportUsersToPdf(users);
+                  } catch (e) {
+                     if (context.mounted) {
+                        showCupertinoDialog(context: context, builder: (c) => CupertinoAlertDialog(
+                          title: const Text("Export Failed"),
+                          content: Text(e.toString()),
+                          actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(c))],
+                        ));
+                     }
+                  } finally {
+                    if (mounted) setState(() => _isExporting = false);
+                  }
+                },
+              ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              child: const Icon(CupertinoIcons.person_add),
+              onPressed: () {
+                Navigator.of(context, rootNavigator: true).push(
+                  CupertinoPageRoute(builder: (_) => const CreateUserScreen()),
+                );
+              },
+            ),
+          ],
+        ),
       ),
-      body: StreamBuilder<List<UserModel>>(
-        stream: firestoreService.getUsersStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-
-          final users = snapshot.data!;
-          if (users.isEmpty) return const Center(child: Text("No users found."));
-
-          return ListView.builder(
-            itemCount: users.length,
-            padding: const EdgeInsets.all(16),
-            itemBuilder: (context, index) {
-              final user = users[index];
-              return AnimatedEntry(
-                delay: Duration(milliseconds: index * 50),
-                child: GlassCard(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                child: ExpansionTile(
-                    shape: const Border(), // Remove default borders
-                    leading: CircleAvatar(
-                      backgroundColor: user.role == UserRole.superAdmin ? Colors.deepPurpleAccent : Colors.teal,
-                      child: Icon(
-                        user.role == UserRole.superAdmin ? Icons.admin_panel_settings : Icons.person,
-                        color: Colors.white,
-                      ),
+      child: SafeArea(
+        child: StreamBuilder<List<UserModel>>(
+          stream: firestoreService.getUsersStream(),
+          builder: (context, snapshot) {
+            return CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                CupertinoSliverRefreshControl(
+                   onRefresh: () async => await Future.delayed(const Duration(seconds: 1)),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: CupertinoSearchTextField(
+                      onChanged: (value) {
+                         setState(() {
+                           _searchQuery = value;
+                         });
+                      },
                     ),
-                    title: Text(
-                      user.name ?? "Unnamed",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      "${user.email}\n${user.role.name} ${user.wardId != null ? '(${user.wardId})' : ''}",
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Wrap(
-                          alignment: WrapAlignment.spaceEvenly,
-                          spacing: 8.0,
-                          runSpacing: 4.0,
-                          children: [
-                            TextButton.icon(
-                              icon: const Icon(Icons.edit, size: 18),
-                              label: const Text("Edit Name"),
-                              onPressed: () => _showEditDialog(context, user, firestoreService),
-                            ),
-                            TextButton.icon(
-                              icon: const Icon(Icons.lock_reset, size: 18, color: Colors.orange),
-                              label: const Text("Reset Pass", style: TextStyle(color: Colors.orange)),
-                              onPressed: () => _confirmResetPassword(context, user),
-                            ),
-                            TextButton.icon(
-                              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                              label: const Text("Delete", style: TextStyle(color: Colors.red)),
-                              onPressed: () => _confirmDelete(context, user, firestoreService),
-                            ),
-                          ],
-                        ),
-                      )
-                    ],
                   ),
                 ),
-              );
-            },
-          );
-        },
+
+                if (snapshot.hasError) 
+                  SliverFillRemaining(child: Center(child: Text("Error: ${snapshot.error}")))
+                else if (!snapshot.hasData) 
+                  const SliverFillRemaining(child: Center(child: CupertinoActivityIndicator()))
+                else
+                  _buildUserListSliver(snapshot.data!),
+              ],
+            );
+          },
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateUserScreen()),
-          );
-        },
-        label: const Text("Add User"),
-        icon: const Icon(Icons.person_add),
+    );
+  }
+
+  Widget _buildUserListSliver(List<UserModel> allUsers) {
+    final users = allUsers.where((u) => 
+      (u.name?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
+      (u.email.toLowerCase().contains(_searchQuery.toLowerCase()))
+    ).toList();
+
+    if (users.isEmpty) {
+       return const SliverFillRemaining(child: Center(child: Text("No users found.")));
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final user = users[index];
+            return AnimatedEntry(
+              delay: Duration(milliseconds: index * 50),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: CupertinoListTile(
+                  backgroundColor: CupertinoColors.systemBackground.resolveFrom(context).withOpacity(0.8),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  leadingSize: 40,
+                  leading: CircleAvatar(
+                    backgroundColor: user.role == UserRole.superAdmin ? CupertinoColors.systemPurple : CupertinoColors.systemTeal,
+                    child: Icon(
+                      user.role == UserRole.superAdmin ? CupertinoIcons.shield_fill : CupertinoIcons.person_fill,
+                      color: CupertinoColors.white,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    user.name ?? "Unnamed",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    "${user.email}\n${user.role.name} ${user.wardId != null ? '(${user.wardId})' : ''}",
+                    style: const TextStyle(color: CupertinoColors.systemGrey, fontSize: 13),
+                  ),
+                  trailing: const Icon(CupertinoIcons.ellipsis, color: CupertinoColors.systemGrey),
+                  onTap: () => _showUserActions(context, user, Provider.of<FirestoreService>(context, listen: false)),
+                ),
+              ),
+            );
+          },
+          childCount: users.length,
+        ),
+      ),
+    );
+  }
+
+  void _showUserActions(BuildContext context, UserModel user, FirestoreService db) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text("Manage ${user.name ?? 'User'}"),
+        message: Text(user.email),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showEditDialog(context, user, db);
+            },
+            child: const Text("Edit Name"),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmResetPassword(context, user);
+            },
+            child: const Text("Reset Password"),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmDelete(context, user, db);
+            },
+            child: const Text("Delete User"),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text("Cancel"),
+        ),
       ),
     );
   }
 
   void _showEditDialog(BuildContext context, UserModel user, FirestoreService db) {
     final nameController = TextEditingController(text: user.name);
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text("Edit User"),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(labelText: "Full Name"),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: CupertinoTextField(
+            controller: nameController,
+            placeholder: "Full Name",
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          CupertinoDialogAction(
             onPressed: () {
               db.updateUser(user.copyWith(name: nameController.text));
               Navigator.pop(ctx);
@@ -129,15 +223,15 @@ class UserManagementScreen extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, UserModel user, FirestoreService db) {
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text("Delete User?"),
         content: Text("Are you sure you want to delete ${user.email}? This action cannot be undone."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             onPressed: () {
               db.deleteUser(user.uid);
               Navigator.pop(ctx);
@@ -150,26 +244,35 @@ class UserManagementScreen extends StatelessWidget {
   }
 
   void _confirmResetPassword(BuildContext context, UserModel user) {
-     showDialog(
+     showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text("Reset Password?"),
         content: Text("Send a password reset email to ${user.email}?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          CupertinoDialogAction(
             onPressed: () async {
               Navigator.pop(ctx);
               try {
                 await Provider.of<AuthService>(context, listen: false).sendPasswordResetEmail(user.email);
-                if (context.mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reset email sent!")));
-                }
+                // No SnackBar in Cupertino, using a dialog or ignored as user will check email
+                // showing a success dialog
+                 if (context.mounted) {
+                   showCupertinoDialog(context: context, builder: (c) => CupertinoAlertDialog(
+                     title: const Text("Email Sent"), 
+                     content: const Text("Password reset email has been sent."),
+                     actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(c))],
+                   ));
+                 }
               } catch (e) {
                  if (context.mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-                }
+                    showCupertinoDialog(context: context, builder: (c) => CupertinoAlertDialog(
+                     title: const Text("Error"), 
+                     content: Text(e.toString()),
+                     actions: [CupertinoDialogAction(child: const Text("OK"), onPressed: ()=>Navigator.pop(c))],
+                   ));
+                 }
               }
             },
             child: const Text("Send Email"),

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors, Icons, Theme; // Minimal material for Colors/Icons if needed, but prefer Cupertino
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/program_model.dart';
@@ -19,28 +20,29 @@ class PublicStatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final firestoreService = Provider.of<FirestoreService>(context);
     final user = Provider.of<AuthService>(context).currentUser;
-    final isAdmin = user?.role == UserRole.superAdmin || user?.role == UserRole.wardAdmin; // Basic check
+    final isAdmin = user?.role == UserRole.superAdmin || user?.role == UserRole.wardAdmin; 
 
-    // Grid Layout Delegate
+    // Grid Layout - slightly adjusted for mobile/tablet
     const gridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(
       maxCrossAxisExtent: 600,
-      mainAxisExtent: 380, // Slightly increased for better spacing
+      mainAxisExtent: 380, 
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
     );
 
     return ModernScaffold(
-      appBar: AppBar(
-        title: const Text("Public Dashboard"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text("Public Dashboard"),
+        backgroundColor: CupertinoColors.systemBackground,
+        border: null, // Remove border for cleaner look if desired
       ),
+      backgroundColor: CupertinoColors.systemGroupedBackground,
       body: StreamBuilder<List<ProgramModel>>(
         stream: firestoreService.getProgramsStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          print("Error: ${snapshot.error}");
+          if (!snapshot.hasData) return const Center(child: CupertinoActivityIndicator());
+          
           final programs = snapshot.data!.where((p) => p.isActive).toList();
 
           if (programs.isEmpty) {
@@ -49,16 +51,16 @@ class PublicStatsScreen extends StatelessWidget {
 
           return CustomScrollView(
             slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
+              SliverSafeArea(
+                bottom: false,
                 sliver: SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                     child: Text(
                       "Live Statistics",
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: CupertinoTheme.of(context).textTheme.navLargeTitleTextStyle.copyWith(
+                        fontSize: 28,
+                      ),
                     ),
                   ),
                 ),
@@ -84,16 +86,15 @@ class PublicStatsScreen extends StatelessWidget {
                            bool isPositiveGrowth = true;
 
                            if (submissionSnapshot.hasError) {
-                             debugPrint("Firestore Error (PublicStats): ${submissionSnapshot.error}");
                              return AnimatedEntry(
                                delay: Duration(milliseconds: index * 100),
                                child: StatCard(
                                  title: program.name,
-                                 trailing: const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                                 trailing: const Icon(CupertinoIcons.exclamationmark_circle, color: CupertinoColors.destructiveRed, size: 20),
                                  child: Center(
                                    child: Text(
                                      "Error loading data",
-                                     style: TextStyle(color: Colors.red.shade300, fontSize: 12),
+                                     style: TextStyle(color: CupertinoColors.destructiveRed.resolveFrom(context), fontSize: 12),
                                    ),
                                  ),
                                ),
@@ -116,9 +117,8 @@ class PublicStatsScreen extends StatelessWidget {
                             child: GestureDetector(
                               onTap: () {
                                 if (isAdmin) {
-                                  Navigator.push(
-                                    context, 
-                                    MaterialPageRoute(builder: (_) => ProgramDetailsScreen(program: program))
+                                  Navigator.of(context, rootNavigator: true).push(
+                                    CupertinoPageRoute(builder: (_) => ProgramDetailsScreen(program: program))
                                   );
                                 }
                               },
@@ -127,11 +127,11 @@ class PublicStatsScreen extends StatelessWidget {
                                 trailing: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.1),
+                                    color: CupertinoColors.activeGreen.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.green),
+                                    border: Border.all(color: CupertinoColors.activeGreen),
                                   ),
-                                  child: const Text("ACTIVE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)),
+                                  child: const Text("ACTIVE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: CupertinoColors.activeGreen)),
                                 ),
                                 child: Column(
                                   children: [
@@ -140,12 +140,15 @@ class PublicStatsScreen extends StatelessWidget {
                                       child: InteractiveGraph(
                                         dataPoints: dataPoints,
                                         labels: labels,
-                                        color: (index % 2 == 0) ? Colors.indigo : Colors.purple,
+                                        color: (index % 2 == 0) ? CupertinoColors.activeBlue.resolveFrom(context) : CupertinoColors.systemPurple.resolveFrom(context),
                                         maxHeight: 180,
                                       ),
                                     ),
                                     const SizedBox(height: 16),
-                                    const Divider(),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                      child: Container(height: 1, color: CupertinoColors.separator),
+                                    ),
                                     Padding(
                                       padding: const EdgeInsets.only(top: 8.0),
                                       child: Row(
@@ -154,12 +157,12 @@ class PublicStatsScreen extends StatelessWidget {
                                           Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Text("Weekly Growth", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                              const Text("Weekly Growth", style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
                                               Text(
                                                 growthText, 
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold, 
-                                                  color: isPositiveGrowth ? Colors.green : Colors.red
+                                                  color: isPositiveGrowth ? CupertinoColors.activeGreen : CupertinoColors.destructiveRed
                                                 )
                                               ),
                                             ],
@@ -167,7 +170,7 @@ class PublicStatsScreen extends StatelessWidget {
                                           Column(
                                             crossAxisAlignment: CrossAxisAlignment.end,
                                             children: [
-                                              const Text("Total Entries", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                              const Text("Total Entries", style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
                                               Text("$totalEntries", style: const TextStyle(fontWeight: FontWeight.bold)),
                                             ],
                                           ),

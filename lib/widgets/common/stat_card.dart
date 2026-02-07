@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../../widgets/common/glass_card.dart';
 
 class StatCard extends StatelessWidget {
@@ -29,9 +29,10 @@ class StatCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: CupertinoTheme.of(context).textTheme.navTitleTextStyle.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade800,
+                      fontSize: 16,
+                      color: CupertinoColors.systemGrey,
                     ),
               ),
               if (trailing != null) trailing!,

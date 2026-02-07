@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 class InteractiveGraph extends StatefulWidget {
   final List<double> dataPoints;
@@ -116,8 +117,8 @@ class _InteractiveGraphState extends State<InteractiveGraph> with SingleTickerPr
                     const SizedBox(height: 4),
                     Text(
                       widget.labels[index],
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey.shade700,
+                      style: TextStyle(
+                            color: CupertinoColors.secondaryLabel.resolveFrom(context),
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
