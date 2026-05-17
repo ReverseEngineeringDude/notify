@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:flutter/material.dart' show Colors, Icons, Theme; // Minimal material for compatibility
 import 'package:provider/provider.dart';
+import '../../services/haptic_service.dart';
 
 import 'package:uuid/uuid.dart';
 import '../../models/program_model.dart';
@@ -60,6 +61,7 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
         }
 
         if (isEmpty) {
+          HapticService.error();
           showCupertinoDialog(
             context: context,
             builder: (ctx) => CupertinoAlertDialog(
@@ -100,6 +102,8 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
       );
 
       await Provider.of<FirestoreService>(context, listen: false).submitEntry(submission);
+      
+      HapticService.success();
 
       if (mounted) {
         await showCupertinoDialog(
@@ -120,6 +124,7 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
         );
       }
     } catch (e) {
+      HapticService.error();
       if (mounted) {
          showCupertinoDialog(
           context: context,
@@ -160,7 +165,10 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
                  Padding(
                    padding: const EdgeInsets.all(16.0),
                    child: CupertinoButton.filled(
-                     onPressed: _submitForm, 
+                     onPressed: () {
+                         HapticService.mediumImpact();
+                         _submitForm();
+                     }, 
                      child: const Text("Submit Data"),
                    ),
                  ),
@@ -194,6 +202,7 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
       case FieldType.dropdown:
         return GestureDetector(
           onTap: () {
+            HapticService.selectionClick();
             showCupertinoModalPopup(
               context: context,
               builder: (ctx) => CupertinoActionSheet(
@@ -244,6 +253,7 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
       case FieldType.date:
         return GestureDetector(
           onTap: () {
+            HapticService.selectionClick();
             showCupertinoModalPopup(
               context: context,
               builder: (c) => Container(

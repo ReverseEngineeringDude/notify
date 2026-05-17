@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors, Icons; // Minimal material for specific colors/icons if needed, but aiming for Cupertino
 import 'package:provider/provider.dart';
+import '../../services/haptic_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import 'public/public_stats_screen.dart';
@@ -133,22 +134,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                         const SizedBox(height: 32),
                         CupertinoButton.filled(
+                          child: authService.isLoading
+                              ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                              : const Text("Login to Dashboard"),
                           onPressed: authService.isLoading
                               ? null
                               : () async {
+                                  HapticService.mediumImpact();
                                   final error = await authService.login(
                                     _emailController.text.trim(),
                                     _passwordController.text.trim(),
                                   );
                                   if (error != null) {
+                                    HapticService.error();
                                     setState(() {
                                       _errorMessage = error;
                                     });
+                                  } else {
+                                    HapticService.success();
                                   }
                                 },
-                          child: authService.isLoading
-                              ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-                              : const Text("Login to Dashboard"),
                         ),
                       ],
                     ),
@@ -172,13 +177,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                             onPressed: () {
+                              HapticService.selectionClick();
                               Navigator.push(
                                 context,
                                 CupertinoPageRoute(builder: (_) => const PublicStatsScreen()),
                               );
                             },
                           ),
-
                         ],
                       ),
                     ),

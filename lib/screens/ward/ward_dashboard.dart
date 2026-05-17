@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:flutter/material.dart' show Colors, Icons, Theme, CircleAvatar; // Minimal material
 import 'package:provider/provider.dart';
+import '../../services/haptic_service.dart';
 import '../../models/program_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
@@ -19,7 +20,7 @@ class WardDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoTabScaffold(
       tabBar: CupertinoTabBar(
-        onTap: (index) => HapticFeedback.lightImpact(),
+        onTap: (index) => HapticService.lightImpact(),
         items: const [
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.graph_circle), label: 'Stats'),
@@ -101,6 +102,7 @@ class _WardHomeTab extends StatelessWidget {
                         child: GlassCard(
                           margin: const EdgeInsets.only(bottom: 16),
                           onTap: () {
+                            HapticService.selectionClick();
                             Navigator.of(context, rootNavigator: true).push(
                               CupertinoPageRoute(
                                 builder: (_) => SubmissionScreen(program: program),
@@ -217,6 +219,7 @@ class _WardSettingsTab extends StatelessWidget {
                   trailing: CupertinoSwitch(
                     value: themeProvider.isDarkMode,
                     onChanged: (value) {
+                      HapticService.selectionClick();
                       themeProvider.toggleTheme(value);
                     },
                   ),
@@ -232,6 +235,7 @@ class _WardSettingsTab extends StatelessWidget {
                   leading: const Icon(CupertinoIcons.arrow_right_square, color: CupertinoColors.destructiveRed),
                   title: const Text("Logout", style: TextStyle(color: CupertinoColors.destructiveRed)),
                   onTap: () {
+                    HapticService.mediumImpact();
                     auth.logout();
                   },
                 ),

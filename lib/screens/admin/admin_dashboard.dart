@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:flutter/material.dart' show Colors, Icons, CircleAvatar, LinearGradient, Alignment; // Minimal material
 import 'package:provider/provider.dart';
+import '../../services/haptic_service.dart';
 import '../../models/program_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
@@ -20,6 +21,7 @@ class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoTabScaffold(
       tabBar: CupertinoTabBar(
+        onTap: (index) => HapticService.lightImpact(),
         items: const [
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.home), label: 'Programs'),
           BottomNavigationBarItem(icon: Icon(CupertinoIcons.group), label: 'Users'),
@@ -63,6 +65,7 @@ class _AdminProgramsTabState extends State<_AdminProgramsTab> {
         _selectedProgramIds.add(id);
       }
     });
+    HapticService.selectionClick();
   }
 
   void _deleteSelected(FirestoreService db) async {
@@ -90,6 +93,7 @@ class _AdminProgramsTabState extends State<_AdminProgramsTab> {
       setState(() {
         _selectedProgramIds.clear();
       });
+      HapticService.success();
     }
   }
 
@@ -152,11 +156,12 @@ class _AdminProgramsTabState extends State<_AdminProgramsTab> {
                               const Text("No active programs found."),
                               const SizedBox(height: 8),
                                CupertinoButton(
-                                onPressed: () {
-                                   Navigator.of(context, rootNavigator: true).push(
+                                 onPressed: () {
+                                    HapticService.mediumImpact();
+                                    Navigator.of(context, rootNavigator: true).push(
                                       CupertinoPageRoute(builder: (_) => const CreateProgramScreen())
                                     );
-                                },
+                                 },
                                 child: const Text("Create First Program"),
                               )
                             ],
@@ -268,6 +273,7 @@ class _AdminProgramsTabState extends State<_AdminProgramsTab> {
                                                       CupertinoSwitch(
                                                         value: program.isActive,
                                                         onChanged: (val) {
+                                                          HapticService.selectionClick();
                                                           firestoreService.toggleProgramStatus(program.id, val);
                                                         },
                                                       ),
@@ -400,6 +406,7 @@ class _AdminSettingsTab extends StatelessWidget {
                   trailing: CupertinoSwitch(
                     value: themeProvider.isDarkMode,
                     onChanged: (value) {
+                      HapticService.selectionClick();
                       themeProvider.toggleTheme(value);
                     },
                   ),
@@ -425,6 +432,7 @@ class _AdminSettingsTab extends StatelessWidget {
                   leading: const Icon(CupertinoIcons.arrow_right_square, color: CupertinoColors.destructiveRed),
                   title: const Text("Logout", style: TextStyle(color: CupertinoColors.destructiveRed)),
                   onTap: () {
+                    HapticService.mediumImpact();
                     auth.logout();
                   },
                 ),
